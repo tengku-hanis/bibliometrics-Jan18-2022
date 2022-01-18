@@ -5,6 +5,11 @@
 
 # Packages ----------------------------------------------------------------
 
+## Install first if not previously installed
+install.packages(c("bibliometrix", "igraph"))
+install.packages("tidyverse")
+
+## Load packages 
 library(bibliometrix)
 library(tidyverse)
 
@@ -74,10 +79,9 @@ mbc2 <-
   distinct(AB, .keep_all = T)
 
 
-
 # Descriptive -------------------------------------------------------------
 
-res <- biblioAnalysis(mbc) #most of publications and citations related metrics
+res <- biblioAnalysis(mbc2) #most of publications and citations related metrics
 summary(res, k=10)
 
 
@@ -98,18 +102,18 @@ p$AverTotCitperYear +
 ## Manual plot - author per paper ----
 
 ### Data for author per paper frequency
-no_author <- stringi::stri_count_regex(mbc$AU, c(";"))
+no_author <- stringi::stri_count_regex(mbc2$AU, c(";"))
 auth_data <- 
-  data.frame(paper = mbc$TI,
-             author = mbc$AU, 
+  data.frame(paper = mbc2$TI,
+             author = mbc2$AU, 
              no_auth = no_author + 1, 
-             type = mbc$DT) %>% 
+             type = mbc2$DT) %>% 
   group_by(no_auth, type) %>% 
   summarise(freq = n(), .groups = "drop")
 auth_data
 
 ### Percentage of papers with 10 author or less
-sum(auth_data2$freq[1:14])/sum(auth_data2$freq) * 100
+sum(auth_data$freq[1:14])/sum(auth_data$freq) * 100
 
 ### Plot
 auth_data %>% 
@@ -131,23 +135,23 @@ auth_data %>%
 
 # Funded research ---------------------------------------------------------
 
-table(is.na(mbc$FU)) %>% 
-  prop.table()*100 #19% funded
+table(is.na(mbc2$FU)) %>% 
+  prop.table()*100 #20% funded
 
 
 # Citation related metrics  -----------------------------------------------
 
 ## References for first paper
-mbc$CR[1] #separator is ;
+mbc2$CR[1] #separator is ;
 res$MostCitedPapers %>% 
   head()
 
 ## 1) Frequently cited manuscripts ----
-fcr <- citations(mbc, field = "article", sep = ";")
+fcr <- citations(mbc2, field = "article", sep = ";")
 cbind("frequency" = fcr$Cited[1:5])
 
 ## 2) Frequently cited first authors ----
-fcfa <- citations(mbc, field = "author", sep = ";")
+fcfa <- citations(mbc2, field = "author", sep = ";")
 cbind("frequency" = fcfa$Cited[1:10])
 
 
@@ -158,34 +162,35 @@ cbind("frequency" = fcfa$Cited[1:10])
 ## 1) Collaboration ----
 
 #authors, universities, countries
-MT <- metaTagExtraction(mbc, Field = "AU_CO", sep = ";")
+MT <- metaTagExtraction(mbc2, Field = "AU_CO", sep = ";")
 country_collab <- biblioNetwork(MT, analysis = "collaboration",  network = "countries")
 summary(networkStat(country_collab))
 
 # Plot
-ccPlot <- networkPlot(country_collab, n = 30, cluster = "none", 
+set.seed(123)
+ccPlot <- networkPlot(country_collab, n = 30, cluster = "none", #try "optimal"
                       Title = "Countries collaboration", type = "sphere",
                       size.cex = T)
 
 # Further edit the countries names
 country_names <- 
-  rownames(ccPlot$nodeDegree %>% 
-             as.data.frame()) %>% 
+  rownames(ccPlot$nodeDegree %>% as.data.frame()) %>% 
   stringr::str_to_title()
 
-country_names[1:30]
+country_names[1:30] #should be the same as n in networkPlot()
 country_names[1] <- "USA"
 
 # Replace the country names in the plot
 library(igraph)
-vertex_attr(ccPlot$graph, "label", index = V(ccPlot$graph)) <- country_names
+vertex_attr(ccPlot$graph, "label", index = V(ccPlot$graph)) <- country_names[1:30]
 plot(ccPlot$graph)
 
 ## 2) Co-citation ----
 
 #authors, references, sources
-ref_cc <- biblioNetwork(mbc, analysis = "co-citation", network = "references", sep = ";")
+ref_cc <- biblioNetwork(mbc2, analysis = "co-citation", network = "references", sep = ";")
 
+set.seed(123)
 networkPlot(ref_cc, n = 30, cluster = "none", 
             Title = "Co-citation of references", type = "circle",
             size.cex = T)
@@ -193,8 +198,9 @@ networkPlot(ref_cc, n = 30, cluster = "none",
 ## 3) Coupling ----
 
 #authors, references, sources, countries
-auth_couple <- biblioNetwork(mbc, analysis = "coupling", network = "authors", sep = ";")
+auth_couple <- biblioNetwork(mbc2, analysis = "coupling", network = "authors", sep = ";")
 
+set.seed(123)
 networkPlot(auth_couple, n = 30, cluster = "none", 
             Title = "Bibliographic coupling of the authors", type = "sphere",
             size.cex = T)
@@ -202,11 +208,12 @@ networkPlot(auth_couple, n = 30, cluster = "none",
 ## 4) Co-word analysis ----
 
 #authors, sources, keywords, author_keywords, titles, abstracts
-kw_co <- biblioNetwork(mbc, analysis = "co-occurrences", network = "keywords", sep = ";")
+kw_co <- biblioNetwork(mbc2, analysis = "co-occurrences", network = "keywords", sep = ";")
 
+set.seed(123)
 networkPlot(kw_co, n = 30, cluster = "none", 
-            Title = "Keyword co-occurrences", type = "sphere",
-            size.cex = T)
+                             Title = "Keyword co-occurrences", type = "fruchterman",
+                             size.cex = T)
 
 
 # Theory related metrics --------------------------------------------------
@@ -224,14 +231,6 @@ L$p.value #there is a sig diff btwn observed and theoretical distribut.
 
 # Theoretical distribution with Beta = 2
 Theoretical <- 10^(log10(L$C)-2*log10(L$AuthorProd[,1]))
-
-# Plot lotka's law
-plot(L$AuthorProd[,1], Theoretical, type = "l", col = "red", ylim = c(0, 1), 
-     xlab = "Articles",
-     ylab = "Freq. of Authors",main="Scientific Productivity")
-lines(L$AuthorProd[,1], L$AuthorProd[,3], col="blue")
-legend(x = "topright", c("Theoretical (B=2)", "Observed"), col=c("red", "blue"),
-       lty = c(1,1,1), cex = 0.6, bty = "n")
 
 # Using ggplot
 ldata <- 
@@ -252,7 +251,7 @@ ldata %>%
 
 ## 2) Bradford's law ----
 
-bl <- bradford(mbc)
+bl <- bradford(mbc2)
 bl
 
 # Summary for each zone
@@ -269,23 +268,23 @@ bl$table %>%
 # Miscellaneous metrics ----------------------------------------------------
 
 # Top 100 - smaller data
-mbc2 <- 
-  mbc %>% 
+mbc3 <- 
+  mbc2 %>% 
   arrange(desc(TC)) %>% 
   slice(1:100)
 
 ## 1) Conceptual structure ----
 
-conceptualStructure(mbc2, field = "ID", stemming = F)
+conceptualStructure(mbc3, field = "ID", stemming = F)
 
 ## 2) History network ----
 
-histData <- histNetwork(mbc2, sep = ";")
+histData <- histNetwork(mbc3, sep = ";")
 histPlot(histData)
 
 ## 3) Thematic map ----
 
-Map <- thematicMap(mbc, field = "ID", #"ID","DE", "TI", "AB"
+Map <- thematicMap(mbc2, field = "ID", #"ID","DE", "TI", "AB"
                    minfreq = 3, stemming = FALSE, n.labels = 3, repel = T)
 plot(Map$map)
 
@@ -304,12 +303,12 @@ th_map
 ## 4) Thematic evolution ----
 
 years <- c(2000)
-thematicEvolution(mbc, field = "DE", #"ID","DE", "TI", "AB"
+thematicEvolution(mbc2, field = "DE", #"ID","DE", "TI", "AB"
                   years = years, n = 100, minFreq = 3)
 
 ## 5) Trending keywords ----
 
-trend_kw <- fieldByYear(mbc, field = "ID", timespan = c(2010,2019),
+trend_kw <- fieldByYear(mbc2, field = "ID", timespan = c(2010,2019),
                   min.freq = 1, n.items = 5, graph = TRUE) 
 trend_kw$graph +
   labs(title = "") +
@@ -334,7 +333,7 @@ dom
 
 ## 7) Top-author productivity over time ----
 
-topAU <- authorProdOverTime(mbc, k=10)
+topAU <- authorProdOverTime(mbc2, k=10)
 topAU$graph +
   labs(title = "") +
   theme_minimal()
@@ -348,7 +347,3 @@ head(topAU$dfPapersAU) #author's document list
 biblioshiny()
 
 
-# Things to do ------------------------------------------------------------
-
-## lotka's plot theory ----
-## fix the plot change ----
