@@ -14,14 +14,12 @@ library(tidyverse)
 ## Read multiple files ----
 
 ## Unzip the zip files
-dir.create("Data")
-
 file_zip <- 
-  list.files(path = getwd(), pattern = "*.zip", full.names = T) %>% 
-  unzip(exdir = "/Data") 
+  list.files(getwd(), pattern = "*.zip", full.names = T) %>% 
+  unzip()
 
 ## Get path to he bib files
-file_bib <- list.files(path = "/Data", pattern = "*.bib", full.names = T)
+file_bib <- list.files(path = getwd(), pattern = "*.bib", full.names = T)
 
 ## Read and combine
 mbc <- 
